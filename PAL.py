@@ -132,6 +132,58 @@ def train_model(model, dataloader, optimizer, device, num_epochs=1):
         
         print(f'Epoch {epoch+1}/{num_epochs}, Loss: {total_loss/len(dataloader)}')
 
+def make_prediction(model, text_embedder, user_id_mapping, context_text, chosen_text, rejected_text, user_id, device):
+    model.eval()
+
+    context_embed = text_embedder.encode([context_text]).to(device)
+    chosen_embed = text_embedder.encode([chosen_text]).to(device)
+    rejected_embed = text_embedder.encode([rejected_text]).to(device)
+
+    # Map user_id to index or handle unseen users
+    if user_id in user_id_mapping:
+        user_index = user_id_mapping[user_id]
+        user_index = torch.tensor([user_index], dtype=torch.long).to(device)
+    else:
+        user_index = None  # Unseen user case
+
+    # Compute rewards
+    reward_chosen = model(context_embed, chosen_embed, user_index)
+    reward_rejected = model(context_embed, rejected_embed, user_index)
+    diff = reward_chosen - reward_rejected
+
+    # Predict based on reward difference
+    prediction = "chosen" if diff.mean() > 0 else "rejected"
+    return prediction == "chosen"
+
+
+def predict(model_path, text_embedder, user_id_mapping, device):
+    # Load test dataset
+    df_test = pd.read_parquet("hf://datasets/MichaelR207/prism_personalized_1023/" + 'data/test-00000-of-00001.parquet')
+
+    # Load the saved model
+    model = PAL_A(
+        input_dim=768,  # DistilBERT embedding dimensions
+        output_dim=128,
+        num_prototypes=5,
+        num_users=len(user_id_mapping)
+    ).to(device)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
+
+    # Calculate accuracy
+    correct_predictions = 0
+    for idx, row in df_test.iterrows():
+        context_text = row['context'][0]['content']
+        chosen_text = row['chosen']['content']
+        rejected_text = row['rejected']['content']
+        user_id = row['user_id']
+
+        is_correct = make_prediction(model, text_embedder, user_id_mapping, context_text, chosen_text, rejected_text, user_id, device)
+        correct_predictions += int(is_correct)
+
+    accuracy = correct_predictions / len(df_test)
+    print(f"\nAccuracy on test set: {accuracy * 100:.2f}%")
+
 def main():
     # Argument parser setup
     parser = argparse.ArgumentParser(description="Train PAL_A model with personalized preferences.")
@@ -142,6 +194,8 @@ def main():
     parser.add_argument("--num_prototypes", type=int, default=5, help="Number of prototypes in the model.")
     parser.add_argument("--use_context", action="store_true", help="Flag to use context-aware embeddings.")
     parser.add_argument("--output_model", type=str, default="pal_a_model.pt", help="Path to save the trained model.")
+    parser.add_argument("--train", action="store_true", help="Train the model.")
+    parser.add_argument("--predict", action="store_true", help="Run predictions.")
 
     args = parser.parse_args()
 
@@ -163,30 +217,36 @@ def main():
 
     input_dim = 768  # For DistilBERT embedding dimensions
     output_dim = 128
-    if args.use_context:
-        model = PAL_A_Contextual(
-            input_dim=input_dim,
-            output_dim=output_dim,
-            num_prototypes=args.num_prototypes,
-            num_users=num_users
-        ).to(device)
-    else:
-        model = PAL_A(
-            input_dim=input_dim,
-            output_dim=output_dim,
-            num_prototypes=args.num_prototypes,
-            num_users=num_users
-        ).to(device)
 
-    train_dataset = PreferenceDataset(df[df['split'] == 'train'], text_embedder, user_id_mapping)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    if args.train:
+        print("Here1")
+        if args.use_context:
+            model = PAL_A_Contextual(
+                input_dim=input_dim,
+                output_dim=output_dim,
+                num_prototypes=args.num_prototypes,
+                num_users=num_users
+            ).to(device)
+        else:
+            model = PAL_A(
+                input_dim=input_dim,
+                output_dim=output_dim,
+                num_prototypes=args.num_prototypes,
+                num_users=num_users
+            ).to(device)
 
-    train_model(model, train_dataloader, optimizer, device, args.num_epochs)
+        train_dataset = PreferenceDataset(df[df['split'] == 'train'], text_embedder, user_id_mapping)
+        train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+        optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
-    # Save the model
-    torch.save(model.state_dict(), args.output_model)
-    print(f"Model saved to {args.output_model}")
+        train_model(model, train_dataloader, optimizer, device, args.num_epochs)
+
+        # Save the model
+        torch.save(model.state_dict(), args.output_model)
+        print(f"Model saved to {args.output_model}")
+    if args.predict:
+        print("Here2")
+        predict(args.output_model, text_embedder, user_id_mapping, device)
 
 
 if __name__ == "__main__":
