@@ -84,7 +84,7 @@ class PAL_A(nn.Module):
 """Using the question's context"""
 class PAL_A_Contextual(nn.Module):
     def __init__(self, input_dim, output_dim, num_prototypes, num_users):
-        super(PAL_A, self).__init__()
+        super(PAL_A_Contextual, self).__init__()
         self.shared_mapping = SharedMapping(input_dim, output_dim)
         self.prototypes = nn.Parameter(torch.randn(num_prototypes, output_dim))
         self.user_weights = nn.Parameter(torch.rand(num_users, num_prototypes))
@@ -182,7 +182,9 @@ def predict(model_path, text_embedder, user_id_mapping, device):
         correct_predictions += int(is_correct)
 
     accuracy = correct_predictions / len(df_test)
+    print("Model used- " + model_path)
     print(f"\nAccuracy on test set: {accuracy * 100:.2f}%")
+    return accuracy
 
 def main():
     # Argument parser setup
@@ -219,7 +221,6 @@ def main():
     output_dim = 128
 
     if args.train:
-        print("Here1")
         if args.use_context:
             model = PAL_A_Contextual(
                 input_dim=input_dim,
@@ -245,7 +246,6 @@ def main():
         torch.save(model.state_dict(), args.output_model)
         print(f"Model saved to {args.output_model}")
     if args.predict:
-        print("Here2")
         predict(args.output_model, text_embedder, user_id_mapping, device)
 
 
