@@ -9,7 +9,7 @@ param_grid = {
     "use_context": [True, False],
 }
 
-grid_combinations = list(product(*param_grid.values()))[1]
+grid_combinations = list(product(*param_grid.values()))
 
 script_path = "PAL.py"
 results = []
@@ -29,16 +29,18 @@ for idx, params in enumerate(grid_combinations):
         "--learning_rate", str(lr),
         "--batch_size", str(batch_size),
         "--num_prototypes", str(num_prototypes),
-        "--output_model", f"models/model_lr{lr}_bs{batch_size}_proto{num_prototypes}_context{use_context}.pt",
+        "--output_model", f"model_lr{lr}_bs{batch_size}_proto{num_prototypes}_context{use_context}.pt",
         "--predict"
     ]
     if use_context:
         cmd.append("--use_context")
 
+    print(f"Command to execute: {' '.join(cmd)}")
+
     # Run the command and capture output
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        print(result.stdout)
+        print(f"Command output:\n{result.stdout}")
 
     except subprocess.CalledProcessError as e:
         print(f"Error running command: {e.stderr}")

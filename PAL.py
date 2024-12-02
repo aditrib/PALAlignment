@@ -156,7 +156,7 @@ def make_prediction(model, text_embedder, user_id_mapping, context_text, chosen_
     return prediction == "chosen"
 
 
-def predict(model_path, text_embedder, user_id_mapping, device):
+def predict(model_path, text_embedder, user_id_mapping, num_prototypes, device):
     # Load test dataset
     df_test = pd.read_parquet("hf://datasets/MichaelR207/prism_personalized_1023/" + 'data/test-00000-of-00001.parquet')
 
@@ -164,10 +164,10 @@ def predict(model_path, text_embedder, user_id_mapping, device):
     model = PAL_A(
         input_dim=768,  # DistilBERT embedding dimensions
         output_dim=128,
-        num_prototypes=5,
+        num_prototypes=num_prototypes,
         num_users=len(user_id_mapping)
     ).to(device)
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load("models/"+model_path))
     model.eval()
 
     # Calculate accuracy
@@ -182,9 +182,12 @@ def predict(model_path, text_embedder, user_id_mapping, device):
         correct_predictions += int(is_correct)
 
     accuracy = correct_predictions / len(df_test)
-    print("Model used- " + model_path)
-    print(f"\nAccuracy on test set: {accuracy * 100:.2f}%")
-    return accuracy
+    results = "Model used- " + model_path + f"\nAccuracy on test set: {accuracy * 100:.2f}%"
+    print(results)
+    resPath = f"results/{model_path}.txt"
+    with open(resPath, "w") as file:
+        file.write(results)
+    return results
 
 def main():
     # Argument parser setup
@@ -221,6 +224,7 @@ def main():
     output_dim = 128
 
     if args.train:
+        print("Training")
         if args.use_context:
             model = PAL_A_Contextual(
                 input_dim=input_dim,
@@ -243,10 +247,13 @@ def main():
         train_model(model, train_dataloader, optimizer, device, args.num_epochs)
 
         # Save the model
-        torch.save(model.state_dict(), args.output_model)
-        print(f"Model saved to {args.output_model}")
+        output_model = "models/"+args.output_model
+        torch.save(model.state_dict(), output_model)
+        print(f"Model saved to {output_model}")
     if args.predict:
-        predict(args.output_model, text_embedder, user_id_mapping, device)
+        print("Predicting")
+        num_prototypes = args.num_prototypes
+        predict(args.output_model, text_embedder, user_id_mapping, num_prototypes, device)
 
 
 if __name__ == "__main__":

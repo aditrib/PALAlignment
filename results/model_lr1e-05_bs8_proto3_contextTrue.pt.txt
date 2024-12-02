@@ -1,0 +1,2 @@
+Model used- model_lr1e-05_bs8_proto3_contextTrue.pt
+Accuracy on test set: 46.43%
