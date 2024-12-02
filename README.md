@@ -1,7 +1,7 @@
 # PAL Alignment
 Pluralistic Alignment Framework (Model A) implementation
 
-To conduct a grid search over 54 experiments, run python gridSearch.py.
+To conduct a grid search over 54 experiments, run `python gridSearch.py.`
 
 This will save models in the models directory, along with test accuracy in results.
 
