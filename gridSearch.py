@@ -30,7 +30,7 @@ for idx, params in enumerate(grid_combinations):
         "--batch_size", str(batch_size),
         "--num_prototypes", str(num_prototypes),
         "--output_model", f"model_lr{lr}_bs{batch_size}_proto{num_prototypes}_context{use_context}.pt",
-        "--predict"
+        '--validate'
     ]
     if use_context:
         cmd.append("--use_context")

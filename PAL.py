@@ -217,6 +217,39 @@ def predict(model_path, text_embedder, user_id_mapping, num_prototypes, device):
         file.write(results)
     return results
 
+def predict(model_path, text_embedder, user_id_mapping, num_prototypes, device):
+    # Load test dataset
+    df_test = pd.read_parquet("hf://datasets/MichaelR207/prism_personalized_1023/" + 'data/validation-00000-of-00001.parquet')
+
+    # Load the saved model
+    model = PAL_A(
+        input_dim=768,  # DistilBERT embedding dimensions
+        output_dim=128,
+        num_prototypes=num_prototypes,
+        num_users=len(user_id_mapping)
+    ).to(device)
+    model.load_state_dict(torch.load("models/"+model_path))
+    model.eval()
+
+    # Calculate accuracy
+    correct_predictions = 0
+    for idx, row in df_test.iterrows():
+        context_text = row['context'][0]['content']
+        chosen_text = row['chosen']['content']
+        rejected_text = row['rejected']['content']
+        user_id = row['user_id']
+
+        is_correct = make_prediction(model, text_embedder, user_id_mapping, context_text, chosen_text, rejected_text, user_id, device)
+        correct_predictions += int(is_correct)
+
+    accuracy = correct_predictions / len(df_test)
+    results = "Model used- " + model_path + f"\nAccuracy on validation set: {accuracy * 100:.2f}%"
+    print(results)
+    resPath = f"results/{model_path}.txt"
+    with open(resPath, "w") as file:
+        file.write(results)
+    return results
+
 def main():
     # Argument parser setup
     parser = argparse.ArgumentParser(description="Train PAL_A model with personalized preferences.")
@@ -278,6 +311,10 @@ def main():
         output_model = "models/"+args.output_model
         torch.save(model.state_dict(), output_model)
         print(f"Model saved to {output_model}")
+    if args.validate:
+        print("Validating")
+        num_prototypes = args.num_prototypes
+        validate(args.output_model, text_embedder, user_id_mapping, num_prototypes, device)
     if args.predict:
         print("Predicting")
         num_prototypes = args.num_prototypes
