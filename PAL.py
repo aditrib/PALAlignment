@@ -21,15 +21,17 @@ class SharedMapping(nn.Module):
     
 # Transformer-based embedding
 class TextEmbedder:
-    def __init__(self, model_name="distilbert-base-uncased"):
+    def __init__(self, model_name="distilbert-base-uncased", device="cpu"):
         self.tokenizer = DistilBertTokenizer.from_pretrained(model_name)
-        self.model = DistilBertModel.from_pretrained(model_name)
+        self.model = DistilBertModel.from_pretrained(model_name).to(device)
+        self.device = device
 
     def encode(self, texts):
-        tokens = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True)
+        tokens = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True).to(self.device)
         with torch.no_grad():
             embeddings = self.model(**tokens).last_hidden_state.mean(dim=1)  # Mean pooling
         return embeddings
+
 
 class PreferenceDataset(Dataset):
     def __init__(self, dataframe, text_embedder, user_id_mapping):
@@ -203,6 +205,10 @@ def main():
     parser.add_argument("--predict", action="store_true", help="Run predictions.")
 
     args = parser.parse_args()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+
+    text_embedder = TextEmbedder(device=device)
 
     splits = {
         'train': 'data/train-00000-of-00001.parquet',
@@ -215,10 +221,6 @@ def main():
     unique_user_ids = df['user_id'].unique()
     user_id_mapping = {user_id: idx for idx, user_id in enumerate(unique_user_ids)}
     num_users = len(unique_user_ids)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    text_embedder = TextEmbedder()
 
     input_dim = 768  # For DistilBERT embedding dimensions
     output_dim = 128
