@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from transformers import DistilBertTokenizer, DistilBertModel
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import pandas as pd
 
 # Model for shared mapping function f
@@ -30,6 +31,31 @@ class TextEmbedder:
         tokens = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True).to(self.device)
         with torch.no_grad():
             embeddings = self.model(**tokens).last_hidden_state.mean(dim=1)  # Mean pooling
+        return embeddings
+    
+class TextEmbedderLLama:
+    def __init__(self, model_name="meta-llama/Llama-3.1-8B", device="cpu", token=None):
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "meta-llama/Llama-3.1-8B",
+            use_auth_token=token
+        )
+        # Add padding token if not present
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.add_special_tokens({'pad_token': self.tokenizer.eos_token})
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            torch_dtype=torch.float16,  # Ensure FP16
+            device_map="auto",
+            use_auth_token=token
+        )
+        self.device = device
+
+    def encode(self, texts):
+        tokens = self.tokenizer(texts, return_tensors='pt', padding=True, truncation=True).to(self.device)
+        with torch.no_grad():
+            outputs = self.model(**tokens, output_hidden_states=True)
+            embeddings = outputs.hidden_states[-1].mean(dim=1)  # Mean pool last layer
         return embeddings
 
 
