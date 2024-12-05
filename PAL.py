@@ -217,7 +217,7 @@ def predict(model_path, text_embedder, user_id_mapping, num_prototypes, device):
         file.write(results)
     return results
 
-def predict(model_path, text_embedder, user_id_mapping, num_prototypes, device):
+def validate(model_path, text_embedder, user_id_mapping, num_prototypes, device):
     # Load test dataset
     df_test = pd.read_parquet("hf://datasets/MichaelR207/prism_personalized_1023/" + 'data/validation-00000-of-00001.parquet')
 
