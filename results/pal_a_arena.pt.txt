@@ -1,0 +1,2 @@
+Model used: pal_a_arena.pt
+Accuracy on test set: 66.61%
